@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Ensure $HOME is set
+[[ -z $HOME ]] && export HOME=/root
+
+# Make sure this script runs once only
+[[ -f /var/lib/cloud-startup.executed ]] && exit 0
+touch /var/lib/cloud-startup.executed
+
+# Ensure unattended-upgrades isn't running
+service unattended-upgrades stop
+
+# tee(1) std{out,err} to log file
+exec > >(tee -a /var/log/cloud-startup.log) 2>&1
+
+export DEBIAN_FRONTEND=noninteractive
+apt_opts=(
+  '-o' 'Dpkg::Options::=--force-confdef'
+  '-o' 'Dpkg::Options::=--force-confold'
+  '-o' 'Dpkg::Progress-Fancy=false'
+  '-o' 'APT::Color=false'
+)
+
+# Purge unwanted packages so as to thrink the VM's root fs as much as possible
+apt-get purge $(dpkg -l |awk '{print $2}' |grep python) -y
+apt-get autoremove --purge -y
+
+# Install dependencies
+apt-get -yq ${apt_opts[@]} update
+apt-get -yq ${apt_opts[@]} install git make
+
+# Clone cloud-boot git repo and install to /usr/local
+git clone --depth=1 https://github.com/fmcbra/cloud-to-ram /var/tmp/cloud-to-ram
+make -C /var/tmp/cloud-to-ram all install
+rm -rf /var/tmp/cloud-to-ram
+
+exit 0
+
+## vim: ts=2 sw=2 et fdm=marker :
