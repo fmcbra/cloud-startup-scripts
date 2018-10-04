@@ -27,12 +27,23 @@ apt-get autoremove --purge -y
 
 # Install dependencies
 apt-get -yq ${apt_opts[@]} update
-apt-get -yq ${apt_opts[@]} install git make
+apt-get -yq ${apt_opts[@]} install curl git make
+apt-get clean
 
 # Clone cloud-boot git repo and install to /usr/local
 git clone --depth=1 https://github.com/fmcbra/cloud-to-ram /var/tmp/cloud-to-ram
-make -C /var/tmp/cloud-to-ram all install
+make -C /var/tmp/cloud-to-ram all install{,-systemd-service}
 rm -rf /var/tmp/cloud-to-ram
+
+# Recreate /root
+rm -rf /root && mkdir -m0700 -p /root/.ssh
+curl https://destinatech-production.appspot.com/pki/ssh/public > /root/.ssh/authorized_keys
+chmod 0600 /root/.ssh/authorized_keys
+git clone https://github.com/fmcbra/dotfiles /root/.dotfiles && make -C /root/.dotfiles
+
+# Reload systemd and start cloud-to-ram.service
+systemctl daemon-reload
+systemctl start cloud-to-ram.service
 
 exit 0
 
